@@ -952,6 +952,13 @@ Please note that --` + MetricsHTTPFlag.Name + ` must be set to start the server.
 		Value:    metrics.DefaultConfig.InfluxDBOrganization,
 		Category: flags.MetricsCategory,
 	}
+
+	// Grandine flags
+	GrandineFlag = &cli.BoolFlag{
+		Name:     "grandine",
+		Usage:    "Enable embedded grandine consensus client",
+		Category: flags.GrandineCategory,
+	}
 )
 
 var (
