@@ -243,11 +243,13 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		blsyncer := blsync.NewClient(ctx)
 		blsyncer.SetEngineRPC(rpc.DialInProc(srv))
 		stack.RegisterLifecycle(blsyncer)
-	} else if ctx.IsSet(utils.GrandineFlag.Name) {
-		client := grandine.NewClient(eth)
-
-		stack.RegisterLifecycle(client)
 	} else {
+		if ctx.IsSet(utils.GrandineFlag.Name) {
+			client := grandine.NewClient(eth)
+	
+			stack.RegisterLifecycle(client)
+		}
+
 		// Launch the engine API for interacting with external consensus client.
 		err := catalyst.Register(stack, eth)
 		if err != nil {
