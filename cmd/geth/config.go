@@ -245,8 +245,8 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		stack.RegisterLifecycle(blsyncer)
 	} else {
 		if ctx.IsSet(utils.GrandineFlag.Name) {
-			client := grandine.NewClient(eth)
-	
+			client := grandine.NewClient(ctx, stack.Config())
+
 			stack.RegisterLifecycle(client)
 		}
 

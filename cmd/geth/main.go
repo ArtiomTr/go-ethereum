@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/grandine"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/flags"
@@ -157,7 +158,7 @@ var (
 		utils.BeaconGenesisTimeFlag,
 		utils.BeaconCheckpointFlag,
 		utils.GrandineFlag,
-	}, utils.NetworkFlags, utils.DatabaseFlags)
+	}, utils.NetworkFlags, utils.DatabaseFlags, grandine.Flags)
 
 	rpcFlags = []cli.Flag{
 		utils.HTTPEnabledFlag,
