@@ -76,6 +76,7 @@ require (
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
+    github.com/grandinetech/grandine v1.2.0
 )
 
 require (
@@ -146,3 +147,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+replace github.com/grandinetech/grandine => ../grandine/bindings/go
+replace github.com/supranational/blst => ../blst
