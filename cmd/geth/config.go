@@ -209,7 +209,7 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 	}
 
 	// Configure log filter RPC API.
-	filterSystem := utils.RegisterFilterAPI(stack, backend, &cfg.Eth)
+	filterSystem, filterApi := utils.RegisterFilterAPI(stack, backend, &cfg.Eth)
 
 	// Configure GraphQL if requested.
 	if ctx.IsSet(utils.GraphQLEnabledFlag.Name) {
@@ -243,13 +243,12 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		blsyncer := blsync.NewClient(ctx)
 		blsyncer.SetEngineRPC(rpc.DialInProc(srv))
 		stack.RegisterLifecycle(blsyncer)
+	} else if ctx.IsSet(utils.GrandineFlag.Name) {
+		// Start embedded CL
+		api := catalyst.NewConsensusAPI(eth)
+		client := grandine.NewClient(ctx, stack.Config(), eth, api, filterApi)
+		stack.RegisterLifecycle(client)
 	} else {
-		if ctx.IsSet(utils.GrandineFlag.Name) {
-			client := grandine.NewClient(ctx, stack.Config())
-
-			stack.RegisterLifecycle(client)
-		}
-
 		// Launch the engine API for interacting with external consensus client.
 		err := catalyst.Register(stack, eth)
 		if err != nil {

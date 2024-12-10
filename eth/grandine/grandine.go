@@ -1,512 +1,22 @@
 package grandine
 
 import (
+	"context"
 	"fmt"
+	"math/big"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/internal/flags"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/eth/catalyst"
+	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/grandinetech/grandine"
 	"github.com/urfave/cli/v2"
-)
-
-var (
-	Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name:     "grandine.network",
-			Usage:    "Name of the Eth2 network to connect to",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.configuration-file",
-			Usage:    "Load configuration from YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.configuration-directory",
-			Usage:    "Load configuration from directory",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.verify-phase0-preset-file",
-			Usage:    "Verify that Phase 0 variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.altair-preset-file",
-			Usage:    "Verify that Altair variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.bellatrix-preset-file",
-			Usage:    "Verify that Bellatrix variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.capella-preset-file",
-			Usage:    "Verify that Capella variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.verify-deneb-preset-file",
-			Usage:    "Verify that Deneb variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.verify-electra-preset-file",
-			Usage:    "Verify that Electra variables in preset match YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.verify-configuration-file",
-			Usage:    "Verify that configuration matches YAML_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.terminal-total-difficulty-override",
-			Usage:    "Override TERMINAL_TOTAL_DIFFICULTY",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.terminal-block-hash-override",
-			Usage:    "Override TERMINAL_BLOCK_HASH",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.terminal-block-hash-activation-epoch-override",
-			Usage:    "Override TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.deposit-contract-starting-block",
-			Usage:    "Start tracking deposit contract from BLOCK_NUMBER",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.genesis-state-file",
-			Usage:    "Load genesis state from SSZ_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.genesis-state-download-url",
-			Usage:    "Download genesis state from specified URL",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.max-empty-slots",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.checkpoint-sync-url",
-			Usage:    "Beacon node API URL to load recent finalized checkpoint and sync from it",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.force-checkpoint-sync",
-			Usage:    "Force checkpoint sync. Requires checkpoint-sync-url",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.eth1-rpc-urls",
-			Usage:    "List of Eth1 RPC URLs",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.data-dir",
-			Usage:    "Parent directory for application data files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.store-directory",
-			Usage:    "Directory to store application data files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.network-dir",
-			Usage:    "Directory to store application network files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.archival-epoch-interval",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.prune-storage",
-			Usage:    "Enable prune mode where only single checkpoint state & block are stored in the DB",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.unfinalized-states-in-memory",
-			Usage:    "Number of unfinalized states to keep in memory",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.database-size",
-			Usage:    "Max size of the Eth2 database",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.eth1-database-size",
-			Usage:    "Max size of the Eth1 database",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.request-timeout",
-			Usage:    "Default global request timeout for various services in milliseconds",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.state-cache-lock-timeout",
-			Usage:    "Default state cache lock timeout in milliseconds",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.state-slot",
-			Usage:    "State slot",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.subscribe-all-subnets",
-			Usage:    "Subscribe to all subnets",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.suggested-fee-recipient",
-			Usage:    "Suggested value for the feeRecipient field of the new payload",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.jwt-id",
-			Usage:    "Optional CL unique identifier to send to EL in the JWT token claim",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.jwt-secret",
-			Usage:    "Path to a file containing the hex-encoded 256 bit secret key to be used for verifying/generating JWT tokens",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.jwt-version",
-			Usage:    "Optional CL node type/version to send to EL in the JWT token claim",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.back-sync",
-			Usage:    "Enable syncing historical data",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.metrics",
-			Usage:    "Collect Prometheus metrics",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.metrics-address",
-			Usage:    "Metrics address for metrics endpoint",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.metrics-port",
-			Usage:    "Listen port for metrics endpoint",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.remote-metrics-url",
-			Usage:    "Optional remote metrics URL that Grandine will periodically send metrics to",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.track-liveness",
-			Usage:    "Enable validator liveness tracking",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.detect-doppelgangers",
-			Usage:    "Enable doppelganger protection (liveness tracking must be enabled for this feature)",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.in-memory",
-			Usage:    "Enable in-memory mode. No data will be stored in data-dir.",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.http-address",
-			Usage:    "HTTP API address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.http-port",
-			Usage:    "HTTP API port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.http-allowed-origins",
-			Usage:    "List of Access-Control-Allow-Origin header values for the HTTP API server. Defaults to the listening URL of the HTTP API server",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.max-events",
-			Usage:    "Max number of events stored in a single channel for HTTP API /events api call",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.timeout",
-			Usage:    "HTTP API timeout in milliseconds",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.listen-address",
-			Usage:    "Listen IPv4 address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.listen-address-ipv6",
-			Usage:    "Listen IPv6 address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.libp2p-port",
-			Usage:    "libp2p IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.libp2p-port-ipv6",
-			Usage:    "libp2p IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.disable-quic",
-			Usage:    "Disable QUIC support as a fallback transport to TCP",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.disable-peer-scoring",
-			Usage:    "Disable peer scoring",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.disable-upnp",
-			Usage:    "Disable NAT traversal via UPnP",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.disable-enr-auto-update",
-			Usage:    "Disable enr auto update",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.discovery-port",
-			Usage:    "discv5 IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.discovery-port-ipv6",
-			Usage:    "discv5 IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.quic-port",
-			Usage:    "QUIC IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.quic-port-ipv6",
-			Usage:    "QUIC IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.enable-private-discovery",
-			Usage:    "Enable discovery of peers with private IP addresses.",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.enr-address",
-			Usage:    "ENR IPv4 address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.enr-address-ipv6",
-			Usage:    "ENR IPv6 address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-tcp-port",
-			Usage:    "ENR TCP IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-tcp-port-ipv6",
-			Usage:    "ENR TCP IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-udp-port",
-			Usage:    "ENR UDP IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-udp-port-ipv6",
-			Usage:    "ENR UDP IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-quic-port",
-			Usage:    "ENR QUIC IPv4 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.enr-quic-port-ipv6",
-			Usage:    "ENR QUIC IPv6 port",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.boot-nodes",
-			Usage:    "List of ENR boot node addresses",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.libp2p-nodes",
-			Usage:    "List of Multiaddr node addresses",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.libp2p-private-key-file",
-			Usage:    "Load p2p private key from KEY_FILE",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.target-peers",
-			Usage:    "Target number of network peers",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.target-subnet-peers",
-			Usage:    "Target number of subnet peers",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.trusted-peers",
-			Usage:    "List of trusted peers",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.keystore-dir",
-			Usage:    "Path to a directory containing EIP-2335 keystore files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.keystore-password-dir",
-			Usage:    "Path to a directory containing passwords for keystore files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.keystore-password-file",
-			Usage:    "Path to a file containing password for keystore files",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.keystore-storage-password-file",
-			Usage:    "Path to a file containing password for decrypting imported keystores from API",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.builder-api-url",
-			Usage:    "[DEPRECATED] External block builder API URL",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.builder-url",
-			Usage:    "External block builder URL",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.builder-disable-checks",
-			Usage:    "Always use specified external block builder without checking for circuit breaker conditions",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.builder-max-skipped-slots",
-			Usage:    "Max allowed consecutive missing blocks to trigger circuit breaker condition and switch to local execution engine for payload construction",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.builder-max-skipped-slots-per-epoch",
-			Usage:    "Max allowed missing blocks in the last rolling epoch to trigger circuit breaker condition and switch to local execution engine for payload construction",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.web3signer-public-keys",
-			Usage:    "List of public keys to use from Web3Signer",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.web3signer-refresh-keys-every-epoch",
-			Usage:    "Refetches keys from Web3Signer once every epoch. This overwrites changes done via Keymanager API",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.web3signer-api-urls",
-			Usage:    "[DEPRECATED] List of Web3Signer API URLs",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.web3signer-urls",
-			Usage:    "List of Web3Signer URLs",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.use-validator-key-cache",
-			Usage:    "Use validator key cache for faster startup",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.slashing-protection-history-limit",
-			Usage:    "Number of epochs to keep slashing protection data for",
-			Category: flags.GrandineCategory,
-		},
-		&cli.BoolFlag{
-			Name:     "grandine.enable-validator-api",
-			Usage:    "Enable validator API",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.validator-api-address",
-			Usage:    "Validator API address",
-			Category: flags.GrandineCategory,
-		},
-		&cli.UintFlag{
-			Name:     "grandine.validator-api-port",
-			Usage:    "Listen port for validator API",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.validator-api-allowed-origins",
-			Usage:    "List of Access-Control-Allow-Origin header values for the validator API server. Defaults to the listening URL of the validator API server",
-			Category: flags.GrandineCategory,
-		},
-		&cli.Uint64Flag{
-			Name:     "grandine.validator-api-timeout",
-			Usage:    "Validator API timeout in milliseconds",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringFlag{
-			Name:     "grandine.validator-api-token-file",
-			Usage:    "Path to a file containing validator API auth token",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.graffiti",
-			Usage:    "",
-			Category: flags.GrandineCategory,
-		},
-		&cli.StringSliceFlag{
-			Name:     "grandine.features",
-			Usage:    "List of optional runtime features to enable",
-			Category: flags.GrandineCategory,
-		},
-	}
 )
 
 type Client struct {
@@ -517,7 +27,755 @@ func convertFlagName(name string) string {
 	return "--" + name[len("grandine."):]
 }
 
-func NewClient(ctx *cli.Context, nodeConfig *node.Config) *Client {
+type GethAdapter struct {
+	eth          *eth.Ethereum
+	consensusApi *catalyst.ConsensusAPI
+	filterApi    *filters.FilterAPI
+}
+
+func (e GethAdapter) EthBlockNumber() uint64 {
+	return e.eth.BlockChain().CurrentBlock().Number.Uint64()
+}
+
+func (e GethAdapter) EthGetBlockByHash(hash [32]byte) *grandine.Eth1Block {
+	block := e.eth.BlockChain().GetBlockByHash(common.BytesToHash(hash[:]))
+
+	if block == nil {
+		return nil
+	}
+
+	return &grandine.Eth1Block{
+		Hash:            [32]byte(block.Hash().Bytes()),
+		ParentHash:      [32]byte(block.ParentHash().Bytes()),
+		Number:          block.Number().Uint64(),
+		Timestamp:       block.Time(),
+		TotalDifficulty: [32]byte(block.Difficulty().Bytes()),
+	}
+}
+
+func (e GethAdapter) EthGetBlockByNumber(number uint64) *grandine.Eth1Block {
+	block := e.eth.BlockChain().GetBlockByNumber(number)
+
+	if block == nil {
+		return nil
+	}
+
+	return &grandine.Eth1Block{
+		Hash:            [32]byte(block.Hash().Bytes()),
+		ParentHash:      [32]byte(block.ParentHash().Bytes()),
+		Number:          block.Number().Uint64(),
+		Timestamp:       block.Time(),
+		TotalDifficulty: [32]byte(block.Difficulty().Bytes()),
+	}
+}
+
+func (e GethAdapter) EthGetBlockFinalized() *grandine.Eth1Block {
+
+	header := e.eth.BlockChain().CurrentFinalBlock()
+
+	if header == nil {
+		return nil
+	}
+
+	block := e.eth.BlockChain().GetBlockByHash(header.Hash())
+
+	if block == nil {
+		return nil
+	}
+
+	return &grandine.Eth1Block{
+		Hash:            [32]byte(block.Hash().Bytes()),
+		ParentHash:      [32]byte(block.ParentHash().Bytes()),
+		Number:          block.Number().Uint64(),
+		Timestamp:       block.Time(),
+		TotalDifficulty: [32]byte(block.Difficulty().Bytes()),
+	}
+}
+
+func (e GethAdapter) EthGetBlockSafe() *grandine.Eth1Block {
+	header := e.eth.BlockChain().CurrentSafeBlock()
+
+	if header == nil {
+		return nil
+	}
+
+	block := e.eth.BlockChain().GetBlockByHash(header.Hash())
+
+	if block == nil {
+		return nil
+	}
+
+	return &grandine.Eth1Block{
+		Hash:            [32]byte(block.Hash().Bytes()),
+		ParentHash:      [32]byte(block.ParentHash().Bytes()),
+		Number:          block.Number().Uint64(),
+		Timestamp:       block.Time(),
+		TotalDifficulty: [32]byte(block.Difficulty().Bytes()),
+	}
+}
+
+func (e GethAdapter) EthGetBlockLatest() *grandine.Eth1Block {
+	header := e.eth.BlockChain().CurrentBlock()
+
+	if header == nil {
+		return nil
+	}
+
+	block := e.eth.BlockChain().GetBlockByHash(header.Hash())
+
+	if block == nil {
+		return nil
+	}
+
+	return &grandine.Eth1Block{
+		Hash:            [32]byte(block.Hash().Bytes()),
+		ParentHash:      [32]byte(block.ParentHash().Bytes()),
+		Number:          block.Number().Uint64(),
+		Timestamp:       block.Time(),
+		TotalDifficulty: [32]byte(block.Difficulty().Bytes()),
+	}
+}
+
+func (e GethAdapter) EthGetBlockEarliest() *grandine.Eth1Block {
+	panic("unimplemented")
+}
+
+func (e GethAdapter) EthGetBlockPending() *grandine.Eth1Block {
+	panic("unimplemented")
+}
+
+// EthLogs implements grandine.ELAdapter.
+func (e *GethAdapter) EthLogs(filter grandine.Filter) []grandine.Log {
+	var fromBlock *big.Int = nil
+	if filter.FromBlock != nil {
+		fromBlock = big.NewInt(int64(*filter.FromBlock))
+	}
+
+	var toBlock *big.Int = nil
+	if filter.ToBlock != nil {
+		toBlock = big.NewInt(int64(*filter.ToBlock))
+	}
+
+	addresses := make([]common.Address, 0, len(filter.Addresses))
+	for _, address := range filter.Addresses {
+		addresses = append(addresses, common.BytesToAddress(address[:]))
+	}
+
+	topics := make([][]common.Hash, 0, len(filter.Topics))
+	for _, topicRow := range filter.Topics {
+		newTopicRow := make([]common.Hash, 0, len(topicRow))
+		for _, topic := range topicRow {
+			newTopicRow = append(newTopicRow, common.BytesToHash(topic[:]))
+		}
+		topics = append(topics, newTopicRow)
+	}
+
+	logs, err := e.filterApi.GetLogs(context.Background(), filters.FilterCriteria{
+		BlockHash: nil,
+		FromBlock: fromBlock,
+		ToBlock:   toBlock,
+		Addresses: addresses,
+		Topics:    topics,
+	})
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	outLogs := make([]grandine.Log, 0, len(logs))
+	for _, log := range logs {
+		if log != nil {
+			blockHash := ([32]byte)(log.BlockHash.Bytes())
+			transactionHash := ([32]byte)(log.TxHash.Bytes())
+			transactionIndex := (uint64)(log.TxIndex)
+
+			topics := make([][32]byte, 0, len(log.Topics))
+			for _, topic := range log.Topics {
+				topics = append(topics, [32]byte(topic.Bytes()))
+			}
+
+			outLogs = append(outLogs, grandine.Log{
+				Address:             [20]byte(log.Address.Bytes()),
+				Topics:              topics,
+				Data:                log.Data,
+				BlockHash:           &blockHash,
+				BlockNumber:         &log.BlockNumber,
+				TransactionHash:     &transactionHash,
+				TransactionIndex:    &transactionIndex,
+				LogIndex:            nil,
+				TransactionLogIndex: nil,
+				LogType:             nil,
+				Removed:             &log.Removed,
+			})
+		}
+	}
+
+	return outLogs
+}
+
+func toGrandineStatus(status string) grandine.PayloadValidationStatus {
+	if status == engine.VALID {
+		return grandine.Valid
+	}
+
+	if status == engine.ACCEPTED {
+		return grandine.Accepted
+	}
+
+	if status == engine.INVALID {
+		return grandine.Invalid
+	}
+
+	if status == engine.SYNCING {
+		return grandine.Syncing
+	}
+
+	panic("failure")
+}
+
+func toGrandinePayload(payload engine.PayloadStatusV1) grandine.PayloadStatusV1 {
+	if payload.LatestValidHash != nil {
+		return grandine.PayloadStatusV1{
+			Status:          toGrandineStatus(payload.Status),
+			LatestValidHash: (*[32]byte)(payload.LatestValidHash.Bytes()),
+		}
+	} else {
+		return grandine.PayloadStatusV1{
+			Status:          toGrandineStatus(payload.Status),
+			LatestValidHash: nil,
+		}
+	}
+}
+
+func (e *GethAdapter) EngineNewPayloadV1(payload grandine.ExecutionPayloadV1) grandine.PayloadStatusV1 {
+	payload_status, err := e.consensusApi.NewPayloadV1(engine.ExecutableData{
+		ParentHash:       common.BytesToHash(payload.ParentHash[:]),
+		FeeRecipient:     common.BytesToAddress(payload.FeeRecipient[:]),
+		StateRoot:        common.BytesToHash(payload.StateRoot[:]),
+		ReceiptsRoot:     common.BytesToHash(payload.ReceiptsRoot[:]),
+		LogsBloom:        payload.LogsBloom,
+		Random:           common.BytesToHash(payload.PrevRandao[:]),
+		Number:           payload.BlockNumber,
+		GasLimit:         payload.GasLimit,
+		GasUsed:          payload.GasUsed,
+		Timestamp:        payload.Timestamp,
+		ExtraData:        payload.ExtraData,
+		BaseFeePerGas:    (&big.Int{}).SetBytes(payload.BaseFeePerGas[:]),
+		BlockHash:        common.BytesToHash(payload.BlockHash[:]),
+		Transactions:     payload.Transactions,
+		Withdrawals:      nil,
+		BlobGasUsed:      nil,
+		ExcessBlobGas:    nil,
+		ExecutionWitness: nil,
+	})
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	return toGrandinePayload(payload_status)
+}
+
+func (e *GethAdapter) EngineNewPayloadV2(payload grandine.ExecutionPayloadV2) grandine.PayloadStatusV1 {
+	withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
+
+	for _, withdrawal := range payload.Withdrawals {
+		withdrawals = append(withdrawals, &types.Withdrawal{
+			Index:     withdrawal.Index,
+			Validator: withdrawal.ValidatorIndex,
+			Address:   common.BytesToAddress(withdrawal.Address[:]),
+			Amount:    withdrawal.Amount,
+		})
+	}
+
+	payload_status, err := e.consensusApi.NewPayloadV2(engine.ExecutableData{
+		ParentHash:       common.BytesToHash(payload.ParentHash[:]),
+		FeeRecipient:     common.BytesToAddress(payload.FeeRecipient[:]),
+		StateRoot:        common.BytesToHash(payload.StateRoot[:]),
+		ReceiptsRoot:     common.BytesToHash(payload.ReceiptsRoot[:]),
+		LogsBloom:        payload.LogsBloom,
+		Random:           common.BytesToHash(payload.PrevRandao[:]),
+		Number:           payload.BlockNumber,
+		GasLimit:         payload.GasLimit,
+		GasUsed:          payload.GasUsed,
+		Timestamp:        payload.Timestamp,
+		ExtraData:        payload.ExtraData,
+		BaseFeePerGas:    (&big.Int{}).SetBytes(payload.BaseFeePerGas[:]),
+		BlockHash:        common.BytesToHash(payload.BlockHash[:]),
+		Transactions:     payload.Transactions,
+		Withdrawals:      withdrawals,
+		BlobGasUsed:      nil,
+		ExcessBlobGas:    nil,
+		ExecutionWitness: nil,
+	})
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	return toGrandinePayload(payload_status)
+}
+
+func (e *GethAdapter) EngineNewPayloadV3(payload grandine.ExecutionPayloadV3, versioned_hashes [][32]byte, parent_beacon_block_root [32]byte) grandine.PayloadStatusV1 {
+	withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
+
+	for _, withdrawal := range payload.Withdrawals {
+		withdrawals = append(withdrawals, &types.Withdrawal{
+			Index:     withdrawal.Index,
+			Validator: withdrawal.ValidatorIndex,
+			Address:   common.BytesToAddress(withdrawal.Address[:]),
+			Amount:    withdrawal.Amount,
+		})
+	}
+
+	versionedHashes := make([]common.Hash, 0, len(versioned_hashes))
+	for _, hashBytes := range versioned_hashes {
+		versionedHashes = append(versionedHashes, common.BytesToHash(hashBytes[:]))
+	}
+
+	beaconRoot := common.BytesToHash(parent_beacon_block_root[:])
+
+	payload_status, err := e.consensusApi.NewPayloadV3(engine.ExecutableData{
+		ParentHash:       common.BytesToHash(payload.ParentHash[:]),
+		FeeRecipient:     common.BytesToAddress(payload.FeeRecipient[:]),
+		StateRoot:        common.BytesToHash(payload.StateRoot[:]),
+		ReceiptsRoot:     common.BytesToHash(payload.ReceiptsRoot[:]),
+		LogsBloom:        payload.LogsBloom,
+		Random:           common.BytesToHash(payload.PrevRandao[:]),
+		Number:           payload.BlockNumber,
+		GasLimit:         payload.GasLimit,
+		GasUsed:          payload.GasUsed,
+		Timestamp:        payload.Timestamp,
+		ExtraData:        payload.ExtraData,
+		BaseFeePerGas:    (&big.Int{}).SetBytes(payload.BaseFeePerGas[:]),
+		BlockHash:        common.BytesToHash(payload.BlockHash[:]),
+		Transactions:     payload.Transactions,
+		Withdrawals:      withdrawals,
+		BlobGasUsed:      &payload.BlobGasUsed,
+		ExcessBlobGas:    &payload.ExcessBlobGas,
+		ExecutionWitness: nil,
+	}, versionedHashes, &beaconRoot)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	return toGrandinePayload(payload_status)
+}
+
+// EngineNewPayloadV4 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineNewPayloadV4(payload grandine.ExecutionPayloadV3, versioned_hashes [][32]byte, parent_beacon_block_root [32]byte, execution_requests [][]byte) grandine.PayloadStatusV1 {
+	withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
+
+	for _, withdrawal := range payload.Withdrawals {
+		withdrawals = append(withdrawals, &types.Withdrawal{
+			Index:     withdrawal.Index,
+			Validator: withdrawal.ValidatorIndex,
+			Address:   common.BytesToAddress(withdrawal.Address[:]),
+			Amount:    withdrawal.Amount,
+		})
+	}
+
+	versionedHashes := make([]common.Hash, 0, len(versioned_hashes))
+	for _, hashBytes := range versioned_hashes {
+		versionedHashes = append(versionedHashes, common.BytesToHash(hashBytes[:]))
+	}
+
+	beaconRoot := common.BytesToHash(parent_beacon_block_root[:])
+
+	executionRequests := make([]hexutil.Bytes, 0, len(execution_requests))
+
+	for _, req := range execution_requests {
+		executionRequests = append(executionRequests, req)
+	}
+
+	payload_status, err := e.consensusApi.NewPayloadV4(engine.ExecutableData{
+		ParentHash:       common.BytesToHash(payload.ParentHash[:]),
+		FeeRecipient:     common.BytesToAddress(payload.FeeRecipient[:]),
+		StateRoot:        common.BytesToHash(payload.StateRoot[:]),
+		ReceiptsRoot:     common.BytesToHash(payload.ReceiptsRoot[:]),
+		LogsBloom:        payload.LogsBloom,
+		Random:           common.BytesToHash(payload.PrevRandao[:]),
+		Number:           payload.BlockNumber,
+		GasLimit:         payload.GasLimit,
+		GasUsed:          payload.GasUsed,
+		Timestamp:        payload.Timestamp,
+		ExtraData:        payload.ExtraData,
+		BaseFeePerGas:    (&big.Int{}).SetBytes(payload.BaseFeePerGas[:]),
+		BlockHash:        common.BytesToHash(payload.BlockHash[:]),
+		Transactions:     payload.Transactions,
+		Withdrawals:      withdrawals,
+		BlobGasUsed:      &payload.BlobGasUsed,
+		ExcessBlobGas:    &payload.ExcessBlobGas,
+		ExecutionWitness: nil,
+	}, versionedHashes, &beaconRoot, executionRequests)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	return toGrandinePayload(payload_status)
+}
+
+func (e *GethAdapter) EngineForkChoiceUpdatedV1(state grandine.ForkChoiceStateV1, payload *grandine.PayloadAttributesV1) grandine.ForkChoiceUpdatedResponse {
+	var payloadAttributes *engine.PayloadAttributes = nil
+
+	if payload != nil {
+		payloadAttributes = &engine.PayloadAttributes{
+			Timestamp:             payload.Timestamp,
+			Random:                common.BytesToHash(payload.PrevRandao[:]),
+			SuggestedFeeRecipient: common.BytesToAddress(payload.SuggestedFeeRecipient[:]),
+			Withdrawals:           nil,
+			BeaconRoot:            nil,
+		}
+	}
+
+	response, err := e.consensusApi.ForkchoiceUpdatedV1(engine.ForkchoiceStateV1{
+		HeadBlockHash:      common.BytesToHash(state.HeadBlockHash[:]),
+		SafeBlockHash:      common.BytesToHash(state.SafeBlockHash[:]),
+		FinalizedBlockHash: common.BytesToHash(state.FinalizedBlockHash[:]),
+	}, payloadAttributes)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	var payloadId *[8]byte = nil
+
+	if response.PayloadID != nil {
+		payloadBytes, err := response.PayloadID.MarshalText()
+
+		if err != nil {
+			panic("unexpected error")
+		}
+
+		payloadId = (*[8]byte)(payloadBytes)
+	}
+
+	return grandine.ForkChoiceUpdatedResponse{
+		PayloadStatus: toGrandinePayload(response.PayloadStatus),
+		PayloadId:     payloadId,
+	}
+}
+
+func (e *GethAdapter) EngineForkChoiceUpdatedV2(state grandine.ForkChoiceStateV1, payload *grandine.PayloadAttributesV2) grandine.ForkChoiceUpdatedResponse {
+	var payloadAttributes *engine.PayloadAttributes = nil
+
+	if payload != nil {
+		withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
+
+		for _, withdrawal := range payload.Withdrawals {
+			withdrawals = append(withdrawals, &types.Withdrawal{
+				Index:     withdrawal.Index,
+				Validator: withdrawal.ValidatorIndex,
+				Address:   common.BytesToAddress(withdrawal.Address[:]),
+				Amount:    withdrawal.Amount,
+			})
+		}
+
+		payloadAttributes = &engine.PayloadAttributes{
+			Timestamp:             payload.Timestamp,
+			Random:                common.BytesToHash(payload.PrevRandao[:]),
+			SuggestedFeeRecipient: common.BytesToAddress(payload.SuggestedFeeRecipient[:]),
+			Withdrawals:           withdrawals,
+			BeaconRoot:            nil,
+		}
+	}
+
+	response, err := e.consensusApi.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
+		HeadBlockHash:      common.BytesToHash(state.HeadBlockHash[:]),
+		SafeBlockHash:      common.BytesToHash(state.SafeBlockHash[:]),
+		FinalizedBlockHash: common.BytesToHash(state.FinalizedBlockHash[:]),
+	}, payloadAttributes)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	var payloadId *[8]byte = nil
+
+	if response.PayloadID != nil {
+		payloadBytes, err := response.PayloadID.MarshalText()
+
+		if err != nil {
+			panic("unexpected error")
+		}
+
+		payloadId = (*[8]byte)(payloadBytes)
+	}
+
+	return grandine.ForkChoiceUpdatedResponse{
+		PayloadStatus: toGrandinePayload(response.PayloadStatus),
+		PayloadId:     payloadId,
+	}
+}
+
+// EngineForkChoiceUpdatedV3 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineForkChoiceUpdatedV3(state grandine.ForkChoiceStateV1, payload *grandine.PayloadAttributesV3) grandine.ForkChoiceUpdatedResponse {
+	var payloadAttributes *engine.PayloadAttributes = nil
+
+	if payload != nil {
+		withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
+
+		for _, withdrawal := range payload.Withdrawals {
+			withdrawals = append(withdrawals, &types.Withdrawal{
+				Index:     withdrawal.Index,
+				Validator: withdrawal.ValidatorIndex,
+				Address:   common.BytesToAddress(withdrawal.Address[:]),
+				Amount:    withdrawal.Amount,
+			})
+		}
+
+		payloadAttributes = &engine.PayloadAttributes{
+			Timestamp:             payload.Timestamp,
+			Random:                common.BytesToHash(payload.PrevRandao[:]),
+			SuggestedFeeRecipient: common.BytesToAddress(payload.SuggestedFeeRecipient[:]),
+			Withdrawals:           withdrawals,
+			BeaconRoot:            nil,
+		}
+	}
+
+	response, err := e.consensusApi.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
+		HeadBlockHash:      common.BytesToHash(state.HeadBlockHash[:]),
+		SafeBlockHash:      common.BytesToHash(state.SafeBlockHash[:]),
+		FinalizedBlockHash: common.BytesToHash(state.FinalizedBlockHash[:]),
+	}, payloadAttributes)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	var payloadId *[8]byte = nil
+
+	if response.PayloadID != nil {
+		payloadBytes, err := response.PayloadID.MarshalText()
+
+		if err != nil {
+			panic("unexpected error")
+		}
+
+		payloadId = (*[8]byte)(payloadBytes)
+	}
+
+	return grandine.ForkChoiceUpdatedResponse{
+		PayloadStatus: toGrandinePayload(response.PayloadStatus),
+		PayloadId:     payloadId,
+	}
+}
+
+// EngineGetPayloadV1 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineGetPayloadV1(payloadId [8]byte) grandine.ExecutionPayloadV1 {
+	payload, err := e.consensusApi.GetPayloadV1(payloadId)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	return grandine.ExecutionPayloadV1{
+		ParentHash:    [32]byte(payload.ParentHash.Bytes()),
+		FeeRecipient:  [20]byte(payload.FeeRecipient.Bytes()),
+		StateRoot:     [32]byte(payload.StateRoot.Bytes()),
+		ReceiptsRoot:  [32]byte(payload.ReceiptsRoot.Bytes()),
+		LogsBloom:     payload.LogsBloom,
+		PrevRandao:    [32]byte(payload.Random.Bytes()),
+		BlockNumber:   payload.Number,
+		GasLimit:      payload.GasLimit,
+		GasUsed:       payload.GasUsed,
+		Timestamp:     payload.Timestamp,
+		ExtraData:     payload.ExtraData,
+		BaseFeePerGas: [32]byte(payload.BaseFeePerGas.Bytes()),
+		BlockHash:     [32]byte(payload.BlockHash.Bytes()),
+		Transactions:  payload.Transactions,
+	}
+}
+
+// EngineGetPayloadV2 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineGetPayloadV2(payloadId [8]byte) grandine.EngineGetPayloadV2Response {
+	payload, err := e.consensusApi.GetPayloadV2(payloadId)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	withdrawals := make([]grandine.WithdrawalV1, 0, len(payload.ExecutionPayload.Withdrawals))
+
+	for _, withdrawal := range payload.ExecutionPayload.Withdrawals {
+		if withdrawal == nil {
+			continue
+		}
+
+		withdrawals = append(withdrawals, grandine.WithdrawalV1{
+			Index:          withdrawal.Index,
+			Amount:         withdrawal.Amount,
+			ValidatorIndex: withdrawal.Validator,
+			Address:        [20]byte(withdrawal.Address.Bytes()),
+		})
+	}
+
+	return grandine.EngineGetPayloadV2Response{
+		ExecutionPayload: grandine.ExecutionPayloadV2{
+			ParentHash:    [32]byte(payload.ExecutionPayload.ParentHash.Bytes()),
+			FeeRecipient:  [20]byte(payload.ExecutionPayload.FeeRecipient.Bytes()),
+			StateRoot:     [32]byte(payload.ExecutionPayload.StateRoot.Bytes()),
+			ReceiptsRoot:  [32]byte(payload.ExecutionPayload.ReceiptsRoot.Bytes()),
+			LogsBloom:     payload.ExecutionPayload.LogsBloom,
+			PrevRandao:    [32]byte(payload.ExecutionPayload.Random.Bytes()),
+			BlockNumber:   payload.ExecutionPayload.Number,
+			GasLimit:      payload.ExecutionPayload.GasLimit,
+			GasUsed:       payload.ExecutionPayload.GasUsed,
+			Timestamp:     payload.ExecutionPayload.Timestamp,
+			ExtraData:     payload.ExecutionPayload.ExtraData,
+			BaseFeePerGas: [32]byte(payload.ExecutionPayload.BaseFeePerGas.Bytes()),
+			BlockHash:     [32]byte(payload.ExecutionPayload.BlockHash.Bytes()),
+			Transactions:  payload.ExecutionPayload.Transactions,
+			Withdrawals:   withdrawals,
+		},
+		BlockValue: [32]byte(payload.BlockValue.Bytes()),
+	}
+}
+
+// EngineGetPayloadV3 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineGetPayloadV3(payloadId [8]byte) grandine.EngineGetPayloadV3Response {
+	payload, err := e.consensusApi.GetPayloadV3(payloadId)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	withdrawals := make([]grandine.WithdrawalV1, 0, len(payload.ExecutionPayload.Withdrawals))
+
+	for _, withdrawal := range payload.ExecutionPayload.Withdrawals {
+		if withdrawal == nil {
+			continue
+		}
+
+		withdrawals = append(withdrawals, grandine.WithdrawalV1{
+			Index:          withdrawal.Index,
+			Amount:         withdrawal.Amount,
+			ValidatorIndex: withdrawal.Validator,
+			Address:        [20]byte(withdrawal.Address.Bytes()),
+		})
+	}
+
+	commitments := make([][48]byte, 0, len(payload.BlobsBundle.Commitments))
+	for _, commitment := range payload.BlobsBundle.Commitments {
+		commitments = append(commitments, [48]byte(commitment))
+	}
+
+	proofs := make([][48]byte, 0, len(payload.BlobsBundle.Proofs))
+	for _, proof := range payload.BlobsBundle.Proofs {
+		proofs = append(proofs, [48]byte(proof))
+	}
+
+	blobs := make([][]byte, 0, len(payload.BlobsBundle.Blobs))
+	for _, blob := range payload.BlobsBundle.Blobs {
+		blobs = append(blobs, blob)
+	}
+
+	return grandine.EngineGetPayloadV3Response{
+		ExecutionPayload: grandine.ExecutionPayloadV3{
+			ParentHash:    [32]byte(payload.ExecutionPayload.ParentHash.Bytes()),
+			FeeRecipient:  [20]byte(payload.ExecutionPayload.FeeRecipient.Bytes()),
+			StateRoot:     [32]byte(payload.ExecutionPayload.StateRoot.Bytes()),
+			ReceiptsRoot:  [32]byte(payload.ExecutionPayload.ReceiptsRoot.Bytes()),
+			LogsBloom:     payload.ExecutionPayload.LogsBloom,
+			PrevRandao:    [32]byte(payload.ExecutionPayload.Random.Bytes()),
+			BlockNumber:   payload.ExecutionPayload.Number,
+			GasLimit:      payload.ExecutionPayload.GasLimit,
+			GasUsed:       payload.ExecutionPayload.GasUsed,
+			Timestamp:     payload.ExecutionPayload.Timestamp,
+			ExtraData:     payload.ExecutionPayload.ExtraData,
+			BaseFeePerGas: [32]byte(payload.ExecutionPayload.BaseFeePerGas.Bytes()),
+			BlockHash:     [32]byte(payload.ExecutionPayload.BlockHash.Bytes()),
+			Transactions:  payload.ExecutionPayload.Transactions,
+			Withdrawals:   withdrawals,
+			BlobGasUsed:   *payload.ExecutionPayload.BlobGasUsed,
+			ExcessBlobGas: *payload.ExecutionPayload.ExcessBlobGas,
+		},
+		BlockValue: [32]byte(payload.BlockValue.Bytes()),
+		BlobsBundle: grandine.BlobsBundleV1{
+			Commitments: commitments,
+			Proofs:      proofs,
+			Blobs:       blobs,
+		},
+		ShouldOverrideBuilder: payload.Override,
+	}
+}
+
+// EngineGetPayloadV4 implements grandine.ELAdapter.
+func (e *GethAdapter) EngineGetPayloadV4(payloadId [8]byte) grandine.EngineGetPayloadV4Response {
+	payload, err := e.consensusApi.GetPayloadV4(payloadId)
+
+	if err != nil {
+		panic("unexpected error")
+	}
+
+	withdrawals := make([]grandine.WithdrawalV1, 0, len(payload.ExecutionPayload.Withdrawals))
+
+	for _, withdrawal := range payload.ExecutionPayload.Withdrawals {
+		if withdrawal == nil {
+			continue
+		}
+
+		withdrawals = append(withdrawals, grandine.WithdrawalV1{
+			Index:          withdrawal.Index,
+			Amount:         withdrawal.Amount,
+			ValidatorIndex: withdrawal.Validator,
+			Address:        [20]byte(withdrawal.Address.Bytes()),
+		})
+	}
+
+	commitments := make([][48]byte, 0, len(payload.BlobsBundle.Commitments))
+	for _, commitment := range payload.BlobsBundle.Commitments {
+		commitments = append(commitments, [48]byte(commitment))
+	}
+
+	proofs := make([][48]byte, 0, len(payload.BlobsBundle.Proofs))
+	for _, proof := range payload.BlobsBundle.Proofs {
+		proofs = append(proofs, [48]byte(proof))
+	}
+
+	blobs := make([][]byte, 0, len(payload.BlobsBundle.Blobs))
+	for _, blob := range payload.BlobsBundle.Blobs {
+		blobs = append(blobs, blob)
+	}
+
+	return grandine.EngineGetPayloadV4Response{
+		ExecutionPayload: grandine.ExecutionPayloadV3{
+			ParentHash:    [32]byte(payload.ExecutionPayload.ParentHash.Bytes()),
+			FeeRecipient:  [20]byte(payload.ExecutionPayload.FeeRecipient.Bytes()),
+			StateRoot:     [32]byte(payload.ExecutionPayload.StateRoot.Bytes()),
+			ReceiptsRoot:  [32]byte(payload.ExecutionPayload.ReceiptsRoot.Bytes()),
+			LogsBloom:     payload.ExecutionPayload.LogsBloom,
+			PrevRandao:    [32]byte(payload.ExecutionPayload.Random.Bytes()),
+			BlockNumber:   payload.ExecutionPayload.Number,
+			GasLimit:      payload.ExecutionPayload.GasLimit,
+			GasUsed:       payload.ExecutionPayload.GasUsed,
+			Timestamp:     payload.ExecutionPayload.Timestamp,
+			ExtraData:     payload.ExecutionPayload.ExtraData,
+			BaseFeePerGas: [32]byte(payload.ExecutionPayload.BaseFeePerGas.Bytes()),
+			BlockHash:     [32]byte(payload.ExecutionPayload.BlockHash.Bytes()),
+			Transactions:  payload.ExecutionPayload.Transactions,
+			Withdrawals:   withdrawals,
+			BlobGasUsed:   *payload.ExecutionPayload.BlobGasUsed,
+			ExcessBlobGas: *payload.ExecutionPayload.ExcessBlobGas,
+		},
+		BlockValue: [32]byte(payload.BlockValue.Bytes()),
+		BlobsBundle: grandine.BlobsBundleV1{
+			Commitments: commitments,
+			Proofs:      proofs,
+			Blobs:       blobs,
+		},
+		ShouldOverrideBuilder: payload.Override,
+		ExecutionRequests:     payload.Requests,
+	}
+}
+
+func NewClient(ctx *cli.Context, nodeConfig *node.Config, eth *eth.Ethereum, consensusApi *catalyst.ConsensusAPI, filterApi *filters.FilterAPI) *Client {
+	adapter := &GethAdapter{eth, consensusApi, filterApi}
+
+	grandine.SetExecutionLayerAdapter(adapter)
+
 	args := []string{}
 
 	for _, flag := range Flags {
