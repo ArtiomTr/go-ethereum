@@ -316,7 +316,7 @@ func (e *GethAdapter) EngineNewPayloadV2(payload grandine.ExecutionPayloadV2) gr
 	return toGrandinePayload(payload_status)
 }
 
-func (e *GethAdapter) EngineNewPayloadV3(payload grandine.ExecutionPayloadV3, versioned_hashes [][32]byte, parent_beacon_block_root [32]byte) grandine.PayloadStatusV1 {
+func (e *GethAdapter) EngineNewPayloadV3(payload grandine.ExecutionPayloadV3, versioned_hashes [][32]byte, parent_beacon_block_root [32]byte) (*grandine.PayloadStatusV1, error) {
 	withdrawals := make([]*types.Withdrawal, 0, len(payload.Withdrawals))
 
 	for _, withdrawal := range payload.Withdrawals {
@@ -357,10 +357,12 @@ func (e *GethAdapter) EngineNewPayloadV3(payload grandine.ExecutionPayloadV3, ve
 	}, versionedHashes, &beaconRoot)
 
 	if err != nil {
-		panic("unexpected error")
+		return nil, err
 	}
 
-	return toGrandinePayload(payload_status)
+	grandinePayload := toGrandinePayload(payload_status)
+
+	return &grandinePayload, nil
 }
 
 // EngineNewPayloadV4 implements grandine.ELAdapter.
